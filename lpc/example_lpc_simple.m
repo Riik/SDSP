@@ -1,7 +1,7 @@
 close all; clear all; clc;
 
 %% load audio
-[x, fs] = wavread('audio/speech2.wav');
+[x, fs] = audioread('audio/speech2.wav');
 
 x = mean(x, 2); % mono
 x = 0.9*x/max(abs(x)); % normalize
