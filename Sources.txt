@@ -1,0 +1,3 @@
+https://soledadpenades.com/2009/10/29/fastest-way-to-generate-wav-files-in-python-using-the-wave-module/
+http://pythonhosted.org/audiolazy/lazy_lpc.html
+https://ccrma.stanford.edu/~hskim08/lpc/
