@@ -62,7 +62,7 @@ def max_xcorr_similarity(seg1, seg2, max_lag):
     return max_i - max_lag        
 filename_in='clean.wav'
 rate, data = scipy.io.wavfile.read(filename_in)
-scale_factor=2
+scale_factor=0.5
 #data=data[8000:-1]
 scaled=wsola(data, rate, scale_factor, 'xcorr')
 #scaled=rint(scaled)
