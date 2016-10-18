@@ -88,8 +88,9 @@ end
 
     % cross correlation based similarity calculation
     function shift = max_xcorr_similarity(seg1, seg2, max_lag)
-        [~, max_i] = max(xcorr(seg1, seg2, max_lag, 'unbiased'));
-        shift = max_i - max_lag;
+        [~, max_i] = max(xcorr(seg1, seg2, max_lag, 'unbiased'))
+        shift = max_i - max_lag
+       
     end
 
     % amdf based similarity calculation
