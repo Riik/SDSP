@@ -92,7 +92,7 @@ def wsola(sig_in, fs, scale_factor, simil_method):
 #            return
 #        int(print(shift))
         cursor_in = cursor_in-int(shift)
-
+        
 
     # % remove slack
     delete(sig_out,s_[int(cursor_out)::]) 
