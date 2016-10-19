@@ -7,7 +7,7 @@ Created on Tue Oct 18 17:40:15 2016
 
 from __future__ import division
 from math import ceil,floor
-from numpy import hanning, correlate,divide,array,arange,zeros,multiply,argmax,spacing,ndarray,rint
+from numpy import hanning, correlate,divide,array,arange,zeros,multiply,argmax,spacing,append,rint,int16,abs
 import scipy.io.wavfile
 
 
@@ -62,10 +62,11 @@ def max_xcorr_similarity(seg1, seg2, max_lag):
     return max_i - max_lag        
 filename_in='clean.wav'
 rate, data = scipy.io.wavfile.read(filename_in)
-scale_factor=2
-#data=data[8000:-1]
+scale_factor=0.5
 scaled=wsola(data, rate, scale_factor, 'xcorr')
 #scaled=rint(scaled)
 #scaled=scaled.astype(int)
+#scaled=append(scaled,[-32767,32767])
+scaled=int16(scaled/max(abs(scaled)) * 32767)
 filename_out = '%s withScale %.2f.wav' %(filename_in,scale_factor)
 scipy.io.wavfile.write(filename_out,rate,scaled)
