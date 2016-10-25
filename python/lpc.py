@@ -7,6 +7,7 @@ Created on Tue Oct 18 17:01:14 2016
 from scipy.io import wavfile
 import numpy as np
 import math
+import scipy.signal as sg
 
 [fs, wavdata] = wavfile.read('clean.wav')
 # Now we convert from int16 to int32 to avoid compatibility issues in Python
@@ -14,11 +15,12 @@ import math
 wavdata = np.ndarray.astype(wavdata, 'int32')
 
 #define filter order p
-p = 12;
+p = 30;
 # window length in ms
 WINDOW_LEN_MS = 20
 # overlap percentage
 overlap = 0.5
+new_fs = 8000
 
 # calculate frame length in samples from length in ms
 N = fs * (WINDOW_LEN_MS) // 1000
@@ -26,6 +28,7 @@ N = fs * (WINDOW_LEN_MS) // 1000
 step = math.floor(N*(1-overlap))
 # calculate number of needed frames
 nFrames = (len(wavdata)-N) // step
+wavdata = sg.resample(wavdata, len(wavdata)*fs/new_fs)
 
 # define the windowing function
 window = np.hanning(N)
@@ -51,8 +54,9 @@ def findfilter(frame):
     r = acf[-p:].reshape(-1)
     try:
         a = np.linalg.solve(R, r)
+        a = np.hstack((np.array([0]), a))
     except np.linalg.linalg.LinAlgError:
-        a = np.zeros(p)
+        a = np.zeros(p+1)
     return a
 
 framedata = []
@@ -70,18 +74,32 @@ filtercoeffs = []
 for frame in framedata:
     filtercoeffs.append(findfilter(frame))
     
+noiseframes = []
+for i, coeffs in enumerate(filtercoeffs):
+    #convoldata with filter to generate a noise sequence
+    noiseframe = np.convolve(framedata[i], coeffs, 'same')
+ #   noiseframe = sg.lfilter(1, coeffs, framedata[i])
+    noiseframes.append(noiseframe)
+
 # synthesize new frames by 
 synthframes = []
 for coeffs in filtercoeffs:
     #generate a noise sequence
     noise = np.random.randint(-32767, 32767, size=N)
     synthframe = np.convolve(noise, coeffs, 'same')
+#    synthframe =  sg.lfilter(1, coeffs, noise)
     synthframes.append(synthframe)
 
 #sum all synthesized frames back together
 wavdata_hat = np.zeros(len(wavdata))
 for i, frame in enumerate(synthframes):
     wavdata_hat[i*step:i*step+N] += frame
+
+#sum all noise frames back together
+wavdata_noise = np.zeros(len(wavdata))
+for i, frame in enumerate(noiseframes):
+    wavdata_noise[i*step:i*step+N] += frame
+
 
 #print('Autocorrelation function from -p to p')
 #print(acf)
@@ -94,6 +112,9 @@ for i, frame in enumerate(synthframes):
 #print(a)
 
 wavdata_hat = np.ndarray.astype(wavdata_hat, 'int16')
-wavfile.write('synthesized.wav', fs, wavdata_hat)
+wavfile.write('synthesized.wav', new_fs, wavdata_hat)
+
+wavdata_noise = np.ndarray.astype(wavdata_noise, 'int16')
+wavfile.write('noisefromfilter.wav', new_fs, wavdata_noise)
 
 
