@@ -1,7 +1,7 @@
 close all; clear all; clc;
 
 %% load audio
-[x, fs] = audioread('audio/speech2.wav');
+[x, fs] = audioread('audio/clean.wav');
 
 x = mean(x, 2); % mono
 x = 0.9*x/max(abs(x)); % normalize
@@ -37,4 +37,4 @@ disp(['Data reduction: ' num2str(nSig/nLPC)]);
 
 
 %% save result to file
-wavwrite(xhat, fs, ['output/lpc_breathy_' num2str(p) '.wav']);
+audiowrite(sprintf('output/lpc_breathy_%d.wav',p),xhat, fs);

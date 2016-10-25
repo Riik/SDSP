@@ -1,7 +1,7 @@
 close all; clear all; clc;
 
 %% load audio
-[x, fs] = wavread('audio/speech2.wav');
+[x, fs] = audioread('audio/speech2.wav');
 
 x = mean(x, 2); % mono
 x = 0.9*x/max(abs(x)); % normalize
@@ -13,7 +13,7 @@ w = hann(floor(0.03*fs), 'periodic'); % using 30ms Hann window
 
 
 %% LPC encode 
-p = 24; % using 6th order
+p = 8; % using 6th order
 [A, G] = lpcEncode(x, p, w);
 
 
@@ -32,9 +32,8 @@ xhat = lpcDecode(A, [G; F], w, 200/fs);
 
 
 %% save result to file
-wavwrite(xhat, fs, ['output/lpc_pitched_' num2str(p) '.wav']); % uncomment to save to file
 
-
+audiowrite(sprintf('output/lpc_pitched_%d.wav',p),xhat, fs);
 %% compare amount of data
 nSig = length(x);
 disp(['Original signal size: ' num2str(nSig)]);
