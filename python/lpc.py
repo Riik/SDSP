@@ -3,6 +3,8 @@
 Created on Tue Oct 18 17:01:14 2016
 
 @author: Rik van der Vlist
+
+Script to obtain the LPC (linear prediction) coefficients from an audio file. 
 """
 from scipy.io import wavfile
 import numpy as np
@@ -37,6 +39,7 @@ nFrames = (len(wavdata)-N) // step
 # define the windowing function
 window = np.hanning(N)
 
+# given a frame of data, this function returns the LPC coefficients, error sequence and error variance 
 def findfilter(frame):
     # initialize the autocorrelation function with zeros
     acf = np.array([0]*(p+1))
@@ -51,8 +54,10 @@ def findfilter(frame):
     acf = np.concatenate([acf[p:0:-1], acf])
     acf = acf.reshape(-1,1)
     # Scipy has a built-in solve_toeplitz function which uses Levinson-Durbin recursion
-    # which is faster than numpy.linalg.solve (which uses Gau)
+    # which is faster than numpy.linalg.solve (which uses Gaußian elimination)
+    # R is upper row from Toeplitx Rx, [rx(0) ... rx(p-1)]
     R = acf[-p-1:-1]
+    # r is right hand side of Rx*a = -r, [rx(1) ... rx(p)].T
     r = acf[-p:].reshape(-1)
     try:
         a = scipy.linalg.solve_toeplitz(R, -r)
@@ -114,7 +119,7 @@ plt.show()
 plt.plot(wavdata_noise)
 plt.show()
 
-# write back to files
+# write back to files, convert back to int16s
 wavdata_hat = np.ndarray.astype(wavdata_hat, 'int16')
 wavfile.write('synthesized.wav', new_fs, wavdata_hat)
 wavdata_noise = np.ndarray.astype(wavdata_noise, 'int16')
