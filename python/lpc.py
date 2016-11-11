@@ -9,6 +9,7 @@ import numpy as np
 import math
 import matplotlib.pyplot as plt
 import scipy.signal as sg
+import scipy
 
 [fs, wavdata] = wavfile.read('clean.wav')
 # Now we convert from int16 to int32 to avoid compatibility issues in Python
@@ -49,25 +50,15 @@ def findfilter(frame):
     # this is the estimated autocorrelation [-rx(p) ... rx(0) ... rx(p)]
     acf = np.concatenate([acf[p:0:-1], acf])
     acf = acf.reshape(-1,1)
-    # compose autocorrelation matrix from the autocorrelation sequence
-    # a shifted version of the function is added to the matrix column per column
+    # Scipy has a built-in solve_toeplitz function which uses Levinson-Durbin recursion
+    # which is faster than numpy.linalg.solve (which uses Gau)
     R = acf[-p-1:-1]
-    for i in range(1,p):
-        R = np.hstack((R, acf[-p-i-1:-i-1]))
-    # create array with [r(1) ... r(p)] 
     r = acf[-p:].reshape(-1)
-    # solve Rx*a = -r
-    # try/catch block is needed because signal can become zero and makes Rx not full rank
     try:
-        a = np.linalg.solve(R, -r)
-        # add 1 as first filter coefficient
+        a = scipy.linalg.solve_toeplitz(R, -r)
         a = np.hstack((np.array([1]), a))
     except np.linalg.linalg.LinAlgError:
         a = np.hstack((np.array([1]), np.zeros(p)))
-#    if(max(a) > 50):
-#        print(a)
-#        print(acf)
-#        print(R)
     # when we take the inverse of the filter H^-1, (AR->MA) we find the error sequence
     # beacuse the inverse is a MA filter we can find the error sequence by a simple convolution
     e = np.convolve(frame, a, 'same');
@@ -102,7 +93,8 @@ synthframes = []
 for i, coeffs in enumerate(filtercoeffs):
     #generate a noise sequence
     noise = np.random.randn(N)*np.sqrt(gains[i])
-    # alternatively, the error sequence can be used to obtain the original signal
+    # alternatively, the error sequence can be used to obtain the original signal. 
+    # this is what we might use for the WSOLA extension 
     #noise = errors[i]
     synthframe = sg.lfilter(np.array([1]), coeffs, noise)
     synthframes.append(synthframe)
@@ -111,7 +103,7 @@ for i, coeffs in enumerate(filtercoeffs):
 wavdata_hat = np.zeros(len(wavdata))
 for i, frame in enumerate(synthframes):
     wavdata_hat[i*step:i*step+N] += frame
-#sum all error sequences back together
+# as a reference, also summ error sequences together 
 wavdata_noise = np.zeros(len(wavdata))
 for i, frame in enumerate(errors):
     wavdata_noise[i*step:i*step+N] += frame
