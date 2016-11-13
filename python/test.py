@@ -1,22 +1,26 @@
 # -*- coding: utf-8 -*-
 """
+Created on Sun Nov 13 17:52:50 2016
+
+@author: Mert
+"""
+
+# -*- coding: utf-8 -*-
+"""
 Created on Tue Oct 18 17:01:14 2016
-
 @author: Rik van der Vlist
-
 Script to obtain the LPC (linear prediction) coefficients from an audio file. 
 """
+
 from scipy.io import wavfile
+from math import ceil,floor
+from numpy import hanning, correlate,divide,array,arange,zeros,multiply,argmax,spacing,append,rint,int16,abs
 import numpy as np
 import math
 import matplotlib.pyplot as plt
 import scipy.signal as sg
 import scipy
-import wsola
-
-scale_factor=2
 filename_in='clean.wav'
-
 [fs, wavdata] = wavfile.read(filename_in)
 # Now we convert from int16 to int32 to avoid compatibility issues in Python
 # and to ensure compatibility with files that are formatted differently
@@ -43,6 +47,50 @@ nFrames = (len(wavdata)-N) // step
 # define the windowing function
 window = np.hanning(N)
 
+def wsola(sig_in,err_in,fs, scale_factor, simil_method):
+#    nargin=wsola.func_code.co_argcount
+#    if nargin<4:
+#        simil_method = 'xcorr'
+#    sf_split_margin = 3
+    win_time = 0.020 #seconds
+    overlap = 0.5
+    sig_in=array(sig_in, dtype=float)
+    max_err = min(0.005, divide(win_time*overlap,scale_factor/2))
+    win_len=ceil(win_time*fs) #320
+    max_err_length=ceil(max_err*fs) #around 80
+    step_len=floor(overlap*win_len)
+    
+    win = hanning(win_len)
+    new_scale = arange(1,round(len(sig_in)*scale_factor*2))
+    sig_out = zeros(len(new_scale))
+    win_out = zeros(len(new_scale))
+    
+    cursor_in = 1
+    cursor_out = 1
+    while cursor_in < (len(sig_in)-win_len-max(step_len,(step_len/scale_factor))-2*max_err_length) \
+            and cursor_out<(len(sig_out)-win_len):
+#         input segments
+        new_seg=multiply(sig_in[cursor_in:cursor_in+win_len],win)
+        new_seg_neighbour = multiply(err_in[(cursor_in+step_len):(cursor_in+step_len+win_len)],win)
+#       overlapp add
+        sig_out[cursor_out:(cursor_out+win_len)]+=new_seg
+        #overlap add window normalization vec
+        win_out[cursor_out:(cursor_out+win_len)]+=win
+        cursor_out += step_len
+        cursor_in +=  round(step_len/scale_factor)      
+        new_seg_cand = multiply(err_in[cursor_in:cursor_in+win_len],win)
+        shift = max_xcorr_similarity(new_seg_neighbour, new_seg_cand, max_err_length)
+        cursor_in -= shift;
+    sig_out=sig_out[1:cursor_out]
+    win_out=win_out[1:cursor_out]
+    return divide(sig_out,(win_out+spacing(1)),sig_out); #%normalize to remove possible modulations
+
+def max_xcorr_similarity(seg1, seg2, max_lag):
+    corrArray=correlate(seg1, seg2, 'full')
+    middle=max(len(seg1),len(seg2))
+    corrArray=corrArray[middle-max_lag:middle+max_lag]
+    max_i = argmax(corrArray)
+    return max_i - max_lag        
 # given a frame of data, this function returns the LPC coefficients, error sequence and error variance 
 def findfilter(frame):
     # initialize the autocorrelation function with zeros
@@ -85,8 +133,6 @@ for i in range(int(nFrames)):
 #TODO: we will be losing some samples in the end because the length of data is
 #       an integer multiple of the frame length 
 
-
-
 filtercoeffs = []
 errors = []
 gains = []
@@ -98,55 +144,45 @@ for frame in framedata:
     errors.append(error)
     gains.append(gain)
 
-    # as a reference, also summ error sequences together 
-wavdata_noise = np.zeros(len(wavdata))
-for i, frame in enumerate(errors):
-    wavdata_noise[i*step:i*step+N] += frame
-
-noise=wsola.wsola(wavdata_noise, fs, scale_factor, 'xcorr')
-noise_framedata=[]
-for i in range(int(nFrames)):
-    noise_frame = noise[i*step:i*step+N*scale_factor]
-    # window the frame
-    window = np.hanning(N*scale_factor)
-    noise_frame = noise_frame * window 
-    # add frame to list of frames
-    noise_framedata.append(noise_frame)
-
 # From the coeficcients we can generate synthesized speech using a noise source 
 # or using the original signal
 synthframes = []
 for i, coeffs in enumerate(filtercoeffs):
     #generate a noise sequence
-    
     noise = np.random.randn(N)*np.sqrt(gains[i])
-    noise = noise_framedata[i]
-    
     # alternatively, the error sequence can be used to obtain the original signal. 
     # this is what we might use for the WSOLA extension 
     #noise = errors[i]
-    synthframe = sg.lfilter(np.array([1]), coeffs,  noise)
+    synthframe = sg.lfilter(np.array([1]), coeffs, noise)
     synthframes.append(synthframe)
 
 #sum all synthesized frames back together
-wavdata_hat = np.zeros(len(wavdata)*scale_factor)
+wavdata_hat = np.zeros(len(wavdata))
 for i, frame in enumerate(synthframes):
-    wavdata_hat[i*N:i*N+N*scale_factor] += frame
+    wavdata_hat[i*step:i*step+N] += frame
+# as a reference, also summ error sequences together 
+wavdata_noise = np.zeros(len(wavdata))
+for i, frame in enumerate(errors):
+    wavdata_noise[i*step:i*step+N] += frame
 
 # make some plots 
-#plt.plot(wavdata_hat)
-#plt.show()
-#plt.plot(wavdata_noise)
-#plt.show()
+plt.plot(wavdata_hat)
+plt.show()
+plt.plot(wavdata_noise)
+plt.show()
 
-
-#scaled=np.int16(scaled/max(abs(scaled)) * 32767)
-#filename_out = '%s withScale %.2f.wav' %(filename_in,scale_factor)
-#scipy.io.wavfile.write(filename_out,new_fs,scaled)
 # write back to files, convert back to int16s
 wavdata_hat = np.ndarray.astype(wavdata_hat, 'int16')
 wavfile.write('synthesized.wav', new_fs, wavdata_hat)
 wavdata_noise = np.ndarray.astype(wavdata_noise, 'int16')
 wavfile.write('noisefromfilter.wav', new_fs, wavdata_noise)
 
+scale_factor=2
 
+scaled=wsola(wavdata, wavdata_noise,fs, scale_factor, 'xcorr')
+#scaled=rint(scaled)
+#scaled=scaled.astype(int)
+#scaled=append(scaled,[-32767,32767])
+scaled=int16(scaled/max(abs(scaled)) * 32767)
+filename_out = '%s withScale %.2f.wav' %(filename_in,scale_factor)
+wavfile.write(filename_out,fs,scaled)
