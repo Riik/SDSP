@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 """
 Created on Sun Nov 13 22:03:54 2016
-
+WSOLA implementation that is extended with matching of the frames in the LPC error domain, as part of
+an assignment for the course Stochastical Digital Signal Processing at Delft University of Technology
+The WSOLA-function in this example is based on a WSOLA-MATLAB that supplements the book heory and "Applications of Digital Speech Processing” by L R Rabiner and R W Schafer
 @author: Rik van der Vlist
 """
 import numpy as np
@@ -14,6 +16,9 @@ debugc = []
 axreal = []
 axideal = []
 
+# find the LPC filter coefficients as well as the error sequence for a given audio frame
+# by computing an estimate for the autocorrelation and solving the YW equations. 
+# also returns the gain of the error signal (\sigma^2)
 def findfilter(frame):
     # initialize the autocorrelation function with zeros
     acf = np.array([0]*(p+1))
@@ -46,10 +51,7 @@ def findfilter(frame):
     return [a, e, g]
 
 def wsola_analysis(y,fs,alpha,nleng,nshift,deltamax):
-    i = 0
-
 # wsola analysis of speech file
-#
 # Inputs:
 #   y=input speech (normalized to 32767)
 #   fs=input speech sampling rate
@@ -68,7 +70,6 @@ def wsola_analysis(y,fs,alpha,nleng,nshift,deltamax):
     deltas=round(deltamax*fs/1000)
 # define the windowing functions
     win = np.hanning(nleng)
-
 # initialize overlap add with first frame
     nideal=0+nshift
     nalpha=0
@@ -77,8 +78,7 @@ def wsola_analysis(y,fs,alpha,nleng,nshift,deltamax):
     yout=np.zeros((int(nsamp/alpha+nleng+0.5)))
     yout[:nleng]=y[:nleng]*win
 # full wsola processing
-    while (nideal+nleng <= nsamp and nalpha+nleng+deltas+alpha*nshift <= nsamp):
-        
+    while (nideal+nleng <= nsamp and nalpha+nleng+deltas+alpha*nshift <= nsamp):     
         xideal=y[nideal:nideal+nleng]
 # increase cursor by step size multiplied with scale factor
         nalpha=nalpha+round(alpha*nshift)
@@ -87,16 +87,13 @@ def wsola_analysis(y,fs,alpha,nleng,nshift,deltamax):
         xreal=y[indexl:nalpha+nleng+deltas]
 # move the output cursor
         nlin=nlin+nshift
-        
 # apply the window and find the error domain signal for both xreal and xideal
         [a1, error_xreal, g] = findfilter(xreal*np.hanning(len(xreal)))
         axreal.append(a1)
         [a2, error_xideal, g] = findfilter(xideal*win)
         axideal.append(a2)
 # correlate the error sequences 
-        c=np.correlate(error_xreal,error_xideal, 'full')
-#        c = np.concatenate((np.zeros(len(xreal)-len(xideal)), c))
-         
+        c=np.correlate(error_xreal,error_xideal, 'full')      
 # find the maximum value of the correlation between the maximum search bound
         middle = len(c) // 2
         cs = c[middle-deltas:middle+deltas]
@@ -104,34 +101,29 @@ def wsola_analysis(y,fs,alpha,nleng,nshift,deltamax):
         maxind= int(np.argmax(cs))
         debug.append(maxind)
         debugc.append(cs)
-
 # overlap add the best matchnshift
         xadd=y[nalpha-deltas+maxind:nalpha-deltas+maxind+nleng]*win
         yout[nlin:nlin+nleng]=yout[nlin:nlin+nleng]+xadd              
 # update the cursor for the next frame to realized starting point + step size 
         nideal=nalpha-deltas+maxind+nshift
-        i = i + 1
     
-# play out time-altered sound
+# generate normalized output
     youtn=yout/float(max(max(yout),-min(yout)))
-    # sound(youtn,fs)
-    
-# save output file
+# generate output in int32 range
     youts=youtn*32700
-    print(i)
+# return all three different outputs
     return [youts, youtn, yout]
 
 scale_factor=2.0
-filename_in='male.wav'
+filename_in='clean.wav'
 
 [fs, wavdata] = wavfile.read(filename_in)
 test = wavdata
-# Now we convert from int16 to int32 to avoid compatibility issues in Python
+# Now we convert from int16 to double to avoid compatibility issues in Python
 # and to ensure compatibility with files that are formatted differently
 wavdata = np.ndarray.astype(wavdata, 'double')
-#wavdata = wavdata / (max(max(wavdata), -min(wavdata)))
 
-#define filter order p
+#define filter order p for LPC
 p = 8;
 # window length in ms
 WINDOW_LEN_MS = 20
@@ -146,8 +138,8 @@ nFrames = (len(wavdata)-N) // step
 #wavdata = sg.resample(wavdata, len(wavdata)*fs/new_fs)
 deltamax_ms = 5 
 
+# apply the WSOLA/LPC analysis
 [youts, youtn, yout] = wsola_analysis(wavdata,fs,scale_factor,N,step,deltamax_ms)
-#yout *= 32700
 yout = np.ndarray.astype(yout, 'int16')
 wavfile.write('wsola.wav', fs, yout)
 
